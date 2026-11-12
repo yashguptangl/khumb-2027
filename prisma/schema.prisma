@@ -1,0 +1,338 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RoleType {
+  SUPER_ADMIN
+  ADMIN
+  OPERATIONS_MANAGER
+  SUPPORT_AGENT
+  PILGRIM
+  HOTEL_OWNER
+  DHARAMSHALA_MANAGER
+  RESTAURANT_OWNER
+  TAXI_OPERATOR
+  TRANSPORT_MANAGER
+  SHOP_OWNER
+  TOUR_GUIDE
+  ACTIVITY_PROVIDER
+  CONTENT_MANAGER
+}
+
+enum VerificationStatus {
+  OFFICIALLY_CONFIRMED
+  PROVISIONAL
+  AWAITING_CONFIRMATION
+  UPDATED
+  CANCELLED
+}
+
+enum EnquiryStatus {
+  NEW
+  CONTACTED
+  QUOTED
+  AVAILABILITY_CONFIRMED
+  BOOKED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  DISPUTED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  phone         String    @unique
+  fullName      String?
+  email         String?   @unique
+  role          RoleType  @default(PILGRIM)
+  languagePref  String    @default("en")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  businesses    BusinessMember[]
+  enquiries     BookingEnquiry[]
+  reviews       Review[]
+  favourites    Favourite[]
+}
+
+model Business {
+  id              String           @id @default(uuid())
+  name            String
+  category        String           // HOTEL, RESTAURANT, TAXI, DHARAMSHALA, SHOP, GUIDE
+  address         String
+  latitude        Float
+  longitude       Float
+  phone           String
+  isVerified      Boolean          @default(false)
+  verifiedAt      DateTime?
+  subscriptionTier String          @default("FREE")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  members         BusinessMember[]
+  properties      Property[]
+  restaurants     Restaurant[]
+  transports      TransportService[]
+  enquiries       BookingEnquiry[]
+  commissions     CommissionLedger[]
+  qrCodes         QRCode[]
+}
+
+model BusinessMember {
+  id          String    @id @default(uuid())
+  businessId  String
+  userId      String
+  role        String    // OWNER, MANAGER, RECEPTIONIST, STAFF
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+}
+
+model Property {
+  id              String      @id @default(uuid())
+  businessId      String
+  name            String
+  type            String      // HOTEL, LUXURY_HOTEL, DHARAMSHALA, ASHRAM
+  stayType        String      @default("PAID") // PAID, DONATION_BASED, FREE
+  pricePerNight   Float       @default(0)
+  rating          Float       @default(4.5)
+  address         String
+  latitude        Float
+  longitude       Float
+  distanceHarKiPauriKm Float  @default(0)
+  imageUrl        String
+  amenities       String      // Comma separated
+  isVerified      Boolean     @default(false)
+  roomsAvailable  Int         @default(5)
+  business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Restaurant {
+  id              String      @id @default(uuid())
+  businessId      String
+  name            String
+  category        String      // SATVIK, VEGETARIAN, SWEETS, BHOJANALAYA
+  address         String
+  latitude        Float
+  longitude       Float
+  imageUrl        String
+  avgPriceForTwo  Float       @default(300)
+  rating          Float       @default(4.6)
+  timings         String
+  isVerified      Boolean     @default(false)
+  business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model TransportService {
+  id              String      @id @default(uuid())
+  businessId      String
+  operatorName    String
+  vehicleType     String      // E_RICKSHAW, AUTO, TAXI_SEDAN, SUV
+  baseFare        Float
+  perKmRate       Float
+  serviceArea     String
+  driverName      String
+  isVerified      Boolean     @default(false)
+  business        Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Destination {
+  id              String      @id
+  nameEn          String
+  nameHi          String
+  category        String      // TEMPLE, GHAT, ASHRAM, NATURE, HISTORICAL
+  descriptionEn   String
+  descriptionHi   String
+  significanceEn  String
+  significanceHi  String
+  address         String
+  latitude        Float
+  longitude       Float
+  distanceFromHarKiPauriKm Float
+  timings         String
+  entryFee        String
+  ropewayInfo     String?
+  bestTimeToVisit String
+  tags            String      // Comma separated
+  imageUrl        String
+  isVerified      Boolean     @default(true)
+  featured        Boolean     @default(false)
+}
+
+model SnanSchedule {
+  id                String              @id @default(uuid())
+  date              String              // YYYY-MM-DD
+  occasionEn        String
+  occasionHi        String
+  tithi             String
+  isAmritSnan       Boolean             @default(false)
+  muhuratStartTime  String
+  muhuratEndTime    String
+  sunrise           String
+  sunset            String
+  status            VerificationStatus  @default(PROVISIONAL)
+  sourceAuthority   String
+  sourceUrl         String?
+  lastUpdated       DateTime            @default(now())
+  descriptionEn     String
+  descriptionHi     String
+}
+
+model OfficialAnnouncement {
+  id            String    @id @default(uuid())
+  titleEn       String
+  titleHi       String
+  category      String    // TRAFFIC, GHAT_ACCESS, SAFETY, WEATHER, MEDICAL
+  authority     String
+  publishedAt   DateTime  @default(now())
+  contentEn     String
+  contentHi     String
+  isUrgent      Boolean   @default(false)
+  sourceUrl     String?
+}
+
+model BookingEnquiry {
+  id            String         @id @default(uuid())
+  category      String         // HOTEL, DHARAMSHALA, TAXI, TOUR_GUIDE
+  businessId    String?
+  listingId     String
+  listingName   String
+  customerId    String?
+  customerName  String
+  customerPhone String
+  date          String
+  guestsCount   Int            @default(1)
+  requirements  String?
+  quotedPrice   Float?
+  status        EnquiryStatus  @default(NEW)
+  commissionDue Float?         @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  business      Business?      @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  customer      User?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+}
+
+model CommissionLedger {
+  id            String    @id @default(uuid())
+  businessId    String
+  enquiryId     String?
+  amount        Float
+  status        String    @default("PENDING") // PENDING, PAID, REFUNDED
+  createdAt     DateTime  @default(now())
+
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model QRCode {
+  id            String    @id @default(uuid())
+  businessId    String
+  codeType      String    // HOTEL_DESK, TABLE_MENU, TAXI_HAIL, DESTINATION
+  scansCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id            String    @id @default(uuid())
+  userId        String
+  targetType    String    // PROPERTY, RESTAURANT, DESTINATION
+  targetId      String
+  rating        Int
+  comment       String?
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Favourite {
+  id            String    @id @default(uuid())
+  userId        String
+  targetType    String    // DESTINATION, HOTEL, RESTAURANT
+  targetId      String
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+}
+
+model RoomInventoryHold {
+  id            String    @id @default(uuid())
+  propertyId    String
+  roomType      String
+  checkIn       String
+  checkOut      String
+  holdExpiresAt DateTime
+  createdAt     DateTime  @default(now())
+}
+
+model TourPackage {
+  id            String    @id @default(uuid())
+  titleEn       String
+  titleHi       String
+  guideName     String
+  duration      String
+  pricePerPerson Float
+  inclusions    String    // Comma-separated
+  languages     String    // Hindi, English, etc.
+  meetingPoint  String
+  rating        Float     @default(4.9)
+  imageUrl      String
+  isVerified    Boolean   @default(true)
+}
+
+model PaymentTransaction {
+  id            String    @id @default(uuid())
+  orderId       String    @unique
+  paymentId     String?
+  signature     String?
+  amount        Float
+  currency      String    @default("INR")
+  status        String    // CREATED, SUCCESS, FAILED
+  bookingId     String?
+  customerPhone String?
+  createdAt     DateTime  @default(now())
+}
+
+model SupportTicket {
+  id            String    @id @default(uuid())
+  ticketNo      String    @unique
+  category      String    // BOOKING, REFUND, VENDOR, GENERAL
+  subject       String
+  userPhone     String
+  status        String    @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority      String    @default("MEDIUM")
+  message       String
+  adminNotes    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model LostFoundReport {
+  id            String    @id @default(uuid())
+  reportType    String    // LOST, FOUND
+  itemCategory  String    // BAG, ID_CARD, PHONE, JEWELLERY, OTHER
+  description   String
+  locationFound String
+  contactPhone  String
+  status        String    @default("PENDING_VERIFICATION") // PENDING_VERIFICATION, VERIFIED, RESOLVED
+  reportedAt    DateTime  @default(now())
+}
+
+model StaffActivityLog {
+  id            String    @id @default(uuid())
+  businessId    String
+  staffId       String
+  action        String
+  details       String?
+  timestamp     DateTime  @default(now())
+}
+
